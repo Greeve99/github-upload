@@ -1,0 +1,6 @@
+{
+    "configuration": "cpu=atmega2560",
+    "board": "arduino:avr:mega",
+    "sketch": "Nomad_Reverse_Controller.ino",
+    "output": "../ArduinoOutput"
+}
