@@ -1,8 +1,7 @@
 
 /*
 Reverse Bucket Controller with a Potentiometer as position sensor
-V1.0B
-
+V1.0c
 
 Externally the unit has 3 Iluminated Buttons
   IO            Buttons             Indicator
@@ -11,6 +10,13 @@ Externally the unit has 3 Iluminated Buttons
                 Neutral             In Neutral; - Bucket in programmed intermediate position
 
 */
+
+#include <EEPROM.h>
+
+#define eeNeutralPositionPointer  0 //pointer stored here to currently used NeutralPosition value in memory
+#define eeNeutralPositionStoreStart  1
+#define eeNeutralPositionStoreEnd  2
+
 enum StateMachine_enum {UP=1, MOVE_TO_NEUTRAL, MOV_TO_UP, MOV_TO_DN, NEUTRAL, DOWN, LEARNING_TRANSITION, LEARNING};
 enum Buttons_enum {NO_PUSHED=1, UP_PUSHED, DOWN_PUSHED, NEUTRAL_PUSHED, UP_DN_PUSHED};
 
@@ -46,7 +52,7 @@ int ledReversePin = 7;
 static uint8_t toggleLED=0; // toggle the LED
 static uint32_t ledtime= millis();
 int AliveLED = 13;  // LED we toggle to show processor is running
-int16_t aliveFlashTime = 200; // time Alive light toggles in ms
+int16_t aliveFlashTime = 250; // time Alive light toggles in ms
 
 unsigned long learningButtonIgnoreTime; // storage for button debounce timer
 int16_t learningStateWaitdelay = 2000; // when all buttons pushed wait this time before processing anymore buttons. 
@@ -80,7 +86,7 @@ bool gateMovingDN = false;
 bool newButtonState = false;
 bool statusLEDflash = false;
 
-
+int neutralBucketEeAddress = 0;
 //int currentSystemState = 0;
 
 
@@ -89,6 +95,21 @@ void setup(){
   // pinMode(redPin, OUTPUT); // red LED is as an output
   // pinMode(greenPin, OUTPUT); // green LED is as an output
  Serial.begin(250000);   // Started serial communication at baud rate of 250000.
+
+
+ neutralBucketEeAddress = EEPROM.read(eeNeutralPositionPointer); // get where current neutral biucket position is stored.
+
+  if ( (neutralBucketEeAddress < eeNeutralPositionStoreStart) & (neutralBucketEeAddress > eeNeutralPositionStoreEnd) ){  // check that the pointer for the storage location is valid we alternate between location 0 and 1
+    neutralBucketEeAddress = eeNeutralPositionStoreStart;
+    EEPROM.update(eeNeutralPositionPointer,neutralBucketEeAddress);
+    delay(100);
+  }
+
+  posNeutralBucket = EEPROM.read(neutralBucketEeAddress); // get stored Neutral bucket position
+
+
+
+
 
  pinMode(buttonReversePin, INPUT_PULLUP);  // input pin
  pinMode(buttonForwardPin, INPUT_PULLUP);
@@ -529,6 +550,12 @@ void ProcessLearnButtonsPressed()
   }else if (buttonNeutralState == true){
     getBucketPosition(); // read current bucket position
     posNeutralBucket = percentDown ; //Save the New Neutral Bucket Position
+    
+    EEPROM.update(neutralBucketEeAddress, posNeutralBucket);
+    delay(100);
+    // nasty should check it has saved and retry if required.
+
+  
     Serial.print("New Bucket Neutral Position: ");
     Serial.println(posNeutralBucket);
     state = NEUTRAL;
