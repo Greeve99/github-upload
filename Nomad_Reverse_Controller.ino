@@ -1,7 +1,7 @@
 
 /*
 Reverse Bucket Controller with a Potentiometer as position sensor
-V1.0a
+V1.0B
 
 
 Externally the unit has 3 Iluminated Buttons
@@ -33,7 +33,7 @@ void gate_Solenoids_DOWN();
 void gate_Solenoids_OFF();
 
 
-int potPin = A0;        // potentiometer is connected to analog 0 pin
+int bucketPositionPin = A0;        // potentiometer is connected to analog 0 pin
 int reverseSolenoidPin = 5;        // Pin to drive bucket to Reverse (Down)position
 int forwardSolenoidPin = 6;        // Pin to drive bucket to Forward (Up) position
 int buttonReversePin = 10;  // input pin
@@ -217,7 +217,7 @@ void state_machine_run(uint8_t read_Buttons)
 //--------------------------------------------------------------------------------------------------- 
 void getBucketPosition()
 {
-  potBucketValue = analogRead(potPin); // read the value from the potentiometer and assign the name potValue
+  potBucketValue = analogRead(bucketPositionPin); // read the value from the potentiometer and assign the name potValue
   percentDown = map(potBucketValue, 0, 1023, 0, 100); // convert potentiometer reading to a percentage
 //  Serial.println(percentDown);                // Printing current BUCKET POSITION 
 }
