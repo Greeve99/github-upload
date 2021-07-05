@@ -1,7 +1,7 @@
 
 /*
 Reverse Bucket Controller with a Potentiometer as position sensor
-V1.0c
+V1.0d
 
 Externally the unit has 3 Iluminated Buttons
   IO            Buttons             Indicator
@@ -39,7 +39,7 @@ void gate_Solenoids_DOWN();
 void gate_Solenoids_OFF();
 
 
-int bucketPositionPin = A0;        // potentiometer is connected to analog 0 pin
+int bucketPositionPin = A4;        // potentiometer is connected to analog 4 pin
 int reverseSolenoidPin = 5;        // Pin to drive bucket to Reverse (Down)position
 int forwardSolenoidPin = 6;        // Pin to drive bucket to Forward (Up) position
 int buttonReversePin = 10;  // input pin
@@ -63,7 +63,7 @@ int percentDown = 0;            // variable used to store the percentage value
 int revPinDeb = 0;
 int fwdPinDeb = 0;
 int nwtPinDeb = 0;
-int debounceVal = 2;
+int debounceVal = 10;
 
 int posNeutralBucket = 49;
 int posUpBucket = 2;
@@ -99,14 +99,18 @@ void setup(){
 
  neutralBucketEeAddress = EEPROM.read(eeNeutralPositionPointer); // get where current neutral biucket position is stored.
 
-  if ( (neutralBucketEeAddress < eeNeutralPositionStoreStart) & (neutralBucketEeAddress > eeNeutralPositionStoreEnd) ){  // check that the pointer for the storage location is valid we alternate between location 0 and 1
+  if ( (neutralBucketEeAddress < eeNeutralPositionStoreStart) && (neutralBucketEeAddress > eeNeutralPositionStoreEnd) ){  // check that the pointer for the storage location is valid we alternate between location 0 and 1
     neutralBucketEeAddress = eeNeutralPositionStoreStart;
     EEPROM.update(eeNeutralPositionPointer,neutralBucketEeAddress);
     delay(100);
   }
 
   posNeutralBucket = EEPROM.read(neutralBucketEeAddress); // get stored Neutral bucket position
-
+  if (posNeutralBucket==0){  // saved value possibly invalid
+    posNeutralBucket=49;
+    EEPROM.update(neutralBucketEeAddress, posNeutralBucket);
+    delay(100);
+    }
 
 
 
@@ -261,10 +265,10 @@ void solenoid_Move_To_Neutral()
       state = NEUTRAL;
       Serial.println("State: NEUTRAL ");
     
-    }else if(((percentDown < posNeutralBucket) & !gateMovingDN ) == true ){
+    }else if(((percentDown < posNeutralBucket) && !gateMovingDN ) == true ){
       gate_Solenoids_DOWN();
 
-    }else if (((percentDown > posNeutralBucket) & !gateMovingUP) == true) {
+    }else if (((percentDown > posNeutralBucket) && !gateMovingUP) == true) {
       gate_Solenoid_UP();
     }
   }  
@@ -323,9 +327,10 @@ void solenoid_Down()
 
 void solenoid_Neutral_Learning()
 {
-  FlashLED(ledForwardPin);
-  FlashLED(ledReversePin);
+  //FlashLED(ledForwardPin);
+  //FlashLED(ledReversePin);
   FlashLED(ledNeutralPin);
+  //FlashAllLED();
 
   if ( (millis()-learningButtonIgnoreTime) > learningStateWaitdelay) {
     TurnOffAllLEDs();
@@ -339,9 +344,10 @@ void solenoid_Neutral_Learning()
 
 void learningNeutralPos()
 {
-  
-  FlashLED(ledForwardPin);
-  FlashLED(ledReversePin);
+
+  FlashAllLED();
+  //FlashLED(ledForwardPin);
+  //FlashLED(ledReversePin);
   // whichButtonsPressed();
 }
 
@@ -499,7 +505,7 @@ void gate_Solenoids_OFF()
 
 void whichButtonsPressed()
 {
-  if ((buttonForwardState & buttonNeutralState & buttonReverseState)== true){
+  if ((buttonForwardState && buttonNeutralState && buttonReverseState) == true){  // learning mode
     statePrevious = state ; // store the current state on entry to learning
     state =  LEARNING_TRANSITION;
     newButtonState=true;
@@ -509,7 +515,7 @@ void whichButtonsPressed()
     gate_Solenoids_OFF();
     
     
-  }else if (((buttonNeutralState & !buttonForwardState & !buttonReverseState) & !(state == MOVE_TO_NEUTRAL) & !(state == NEUTRAL))== true){
+  }else if (((buttonNeutralState && !(buttonForwardState || buttonReverseState)) && !((state == MOVE_TO_NEUTRAL) || (state == NEUTRAL)))== true){
   //}else if ((buttonNeutralState & (!(state == MOVE_TO_NEUTRAL) & !(state == NEUTRAL)))== true){
     state = MOVE_TO_NEUTRAL;
     newButtonState=true;
@@ -517,7 +523,7 @@ void whichButtonsPressed()
     TurnOffAllLEDs();
     gate_Solenoids_OFF();  
 
-  } else if ((buttonForwardState & !(state == MOV_TO_UP)) == true){
+  } else if ((buttonForwardState && !buttonReverseState && !(state == UP || state == MOV_TO_UP)) == true){
   //} else if ((buttonForwardState & !buttonNeutralState & !buttonReverseState) == true){
     state = MOV_TO_UP;
     newButtonState=true;
@@ -525,7 +531,7 @@ void whichButtonsPressed()
     Serial.println("State: MOV_TO_UP pressed ");
     TurnOffAllLEDs();
 
-  } else if ((buttonReverseState & !(state == MOV_TO_DN)) == true){
+  } else if (buttonReverseState && !((state == MOV_TO_DN) && (state== DOWN)) == true){
     state = MOV_TO_DN;
     newButtonState=true;
     gate_Solenoids_DOWN();
@@ -537,7 +543,7 @@ void whichButtonsPressed()
 
 void ProcessLearnButtonsPressed()
 {
-  if ((buttonForwardState & buttonReverseState)== true){
+  if ((buttonForwardState && buttonReverseState)== true){
     state =  statePrevious; // restore the previous state ena exit
     newButtonState=true;
     Serial.print("Restoring Previous State before Learning ");
@@ -564,16 +570,16 @@ void ProcessLearnButtonsPressed()
     gate_Solenoids_OFF();
     TurnOffAllLEDs();  
 
-  } else if ((buttonForwardState & !gateMovingUP) == true){
+  } else if ((buttonForwardState && !gateMovingUP) == true){
     gate_Solenoid_UP();
 
 
-  } else if ((buttonReverseState & !gateMovingDN) == true){
+  } else if ((buttonReverseState && !gateMovingDN) == true){
     gate_Solenoids_DOWN();
 
 //  } else if (!(buttonForwardState | buttonReverseState | buttonNeutralState) == true){
 
-  } else if (!(buttonForwardState | buttonReverseState | buttonNeutralState) & (gateMovingDN | gateMovingUP) == true){
+  } else if (!(buttonForwardState || buttonReverseState || buttonNeutralState) && (gateMovingDN || gateMovingUP) == true){
     gate_Solenoids_OFF();
   }
 
@@ -609,10 +615,26 @@ void FlashLED(int LED_Pin)
     if (toggleLED) digitalWrite(LED_Pin,HIGH); else digitalWrite(LED_Pin,LOW);
         //Serial.println("flash Status LED");   
 
-  }
-  
-  
+  }  
 }
+
+void FlashAllLED(){
+    if(statusLEDflash == true){
+      statusLEDflash = false;
+      if (toggleLED){
+        digitalWrite(ledForwardPin,HIGH);
+        digitalWrite(ledNeutralPin,HIGH);
+        digitalWrite(ledReversePin,HIGH); 
+      }else{
+        digitalWrite(ledForwardPin,LOW);
+        digitalWrite(ledNeutralPin,LOW);
+        digitalWrite(ledReversePin,LOW); 
+        
+      }
+    }
+}
+  
+
 
 
 
