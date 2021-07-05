@@ -1,7 +1,7 @@
 
 /*
 Reverse Bucket Controller with a Potentiometer as position sensor
-V1.0d
+V1.0e
 
 Externally the unit has 3 Iluminated Buttons
   IO            Buttons             Indicator
@@ -172,9 +172,11 @@ void state_machine_run(uint8_t read_Buttons)
     case UP:
     
 //      Serial.print("State: UP ");
+
+      
       solenoids_Up();
       
-      
+          
       break;
       
     case MOVE_TO_NEUTRAL:
@@ -201,6 +203,7 @@ void state_machine_run(uint8_t read_Buttons)
  
     case NEUTRAL:
 //      Serial.print("State: NEUTRAL ");
+     
       solenoid_Neutral();
 
      
@@ -208,7 +211,9 @@ void state_machine_run(uint8_t read_Buttons)
      
     case DOWN:
 //      Serial.print("State: DOWN ");
-      solenoid_Down();
+          
+        solenoid_Down();
+      
 
      
       break;
@@ -523,18 +528,25 @@ void whichButtonsPressed()
     TurnOffAllLEDs();
     gate_Solenoids_OFF();  
 
+
+
+
   } else if ((buttonForwardState && !buttonReverseState && !(state == UP || state == MOV_TO_UP)) == true){
   //} else if ((buttonForwardState & !buttonNeutralState & !buttonReverseState) == true){
     state = MOV_TO_UP;
     newButtonState=true;
-    gate_Solenoid_UP();
+    if(percentDown > posUpBucket){
+      gate_Solenoid_UP();
+    }
     Serial.println("State: MOV_TO_UP pressed ");
     TurnOffAllLEDs();
 
   } else if (buttonReverseState && !((state == MOV_TO_DN) && (state== DOWN)) == true){
     state = MOV_TO_DN;
     newButtonState=true;
-    gate_Solenoids_DOWN();
+    if(percentDown < posDownBucket){
+      gate_Solenoids_DOWN();
+    }
     Serial.println("State: MOV_TO_DN ");
     TurnOffAllLEDs();
   }
