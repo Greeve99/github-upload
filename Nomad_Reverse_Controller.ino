@@ -1,7 +1,7 @@
 
 /*
 Reverse Bucket Controller with a Potentiometer as position sensor
-V1.0e
+V1.0f
 
 Externally the unit has 3 Iluminated Buttons
   IO            Buttons             Indicator
@@ -13,9 +13,18 @@ Externally the unit has 3 Iluminated Buttons
 
 #include <EEPROM.h>
 
+
+
+#include <Wire.h> 
+#include <LiquidCrystal_I2C.h>
+
+LiquidCrystal_I2C lcd(0x27,20,4);  // set the LCD address to 0x27 for a 16 chars and 2 line display
+
 #define eeNeutralPositionPointer  0 //pointer stored here to currently used NeutralPosition value in memory
 #define eeNeutralPositionStoreStart  1
 #define eeNeutralPositionStoreEnd  2
+
+#define DebugLCD true 
 
 enum StateMachine_enum {UP=1, MOVE_TO_NEUTRAL, MOV_TO_UP, MOV_TO_DN, NEUTRAL, DOWN, LEARNING_TRANSITION, LEARNING};
 enum Buttons_enum {NO_PUSHED=1, UP_PUSHED, DOWN_PUSHED, NEUTRAL_PUSHED, UP_DN_PUSHED};
@@ -34,12 +43,12 @@ uint8_t statePrevious = MOV_TO_UP ; //varible to store previoue state while lear
 
 void TurnOnForwardLED();
 
-void gate_Solenoid_UP();
-void gate_Solenoids_DOWN();
-void gate_Solenoids_OFF();
+void bucket_Solenoid_UP();
+void bucket_Solenoids_DOWN();
+void bucket_Solenoids_OFF();
 
 
-int bucketPositionPin = A4;        // potentiometer is connected to analog 4 pin
+int bucketPositionPin = A3;        // potentiometer is connected to analog 4 pin
 int reverseSolenoidPin = 5;        // Pin to drive bucket to Reverse (Down)position
 int forwardSolenoidPin = 6;        // Pin to drive bucket to Forward (Up) position
 int buttonReversePin = 10;  // input pin
@@ -57,19 +66,23 @@ int16_t aliveFlashTime = 250; // time Alive light toggles in ms
 unsigned long learningButtonIgnoreTime; // storage for button debounce timer
 int16_t learningStateWaitdelay = 2000; // when all buttons pushed wait this time before processing anymore buttons. 
 
+
+int16_t bucketMoveTimeoutValue = 6000; // max time motor can stay on looking for Target bucket position.
+static uint32_t bucketMoveTimer = millis();
+
+
+
 int potBucketValue = 0;           // variable used to store the value coming from the sensor
 int percentDown = 0;            // variable used to store the percentage value
 
 int revPinDeb = 0;
 int fwdPinDeb = 0;
 int nwtPinDeb = 0;
-int debounceVal = 10;
+int debounceVal = 3;
 
 int posNeutralBucket = 49;
-int posUpBucket = 2;
-int posDownBucket = 100;
-int bucketMoveTimeoutValue = 600; // max time motor can stay on looking for Target bucket position.
-int BucketMoveTimer = 0;
+int posUpBucket = 20;
+int posDownBucket = 97;
 int testDelay = 200;
 
 bool buttonForwardState = false;
@@ -81,8 +94,8 @@ bool buttFwdPrevState = false;
 bool buttRevPrevState = false;
 bool buttNeutPrevState = false;
 
-bool gateMovingUP = false;
-bool gateMovingDN = false;
+bool bucketMovingUP = false;
+bool bucketMovingDN = false;
 bool newButtonState = false;
 bool statusLEDflash = false;
 
@@ -95,6 +108,14 @@ void setup(){
   // pinMode(redPin, OUTPUT); // red LED is as an output
   // pinMode(greenPin, OUTPUT); // green LED is as an output
  Serial.begin(250000);   // Started serial communication at baud rate of 250000.
+
+  lcd.init();                      // initialize the lcd 
+  lcd.backlight();
+  lcd.setCursor(1,0);
+  lcd.print("Nomad Jets");
+  lcd.setCursor(1,1);
+  lcd.print("V1.0f");
+
 
 
  neutralBucketEeAddress = EEPROM.read(eeNeutralPositionPointer); // get where current neutral biucket position is stored.
@@ -143,6 +164,11 @@ void loop(){
   //Serial.println(state);                // Printing current State 
                                          
   getBucketPosition();
+
+    lcd.setCursor(1,0);
+    lcd.print("Bucket: ");
+    lcd.print(percentDown);
+    
  
   //Serial.print("Gate Position is: ");   
   //Serial.println(percentDown);   
@@ -161,6 +187,15 @@ void loop(){
   Serial.println(buttonReverseState);    
 */
 //  delay(100);
+if(bucketMovingUP||bucketMovingDN){ // while any solenoid is ON
+  if((millis()-bucketMoveTimer)>bucketMoveTimeoutValue){  //Check the timeout
+    bucket_Solenoids_OFF();  // turn off soeloids
+    lcd.setCursor(15,0);
+    lcd.print("T");  // indicate output timmed OFF
+        
+  }
+}
+
 }
 
 
@@ -172,8 +207,7 @@ void state_machine_run(uint8_t read_Buttons)
     case UP:
     
 //      Serial.print("State: UP ");
-
-      
+        
       solenoids_Up();
       
           
@@ -184,6 +218,7 @@ void state_machine_run(uint8_t read_Buttons)
       solenoid_Move_To_Neutral();
 
 
+
       break;
 
 
@@ -191,7 +226,7 @@ void state_machine_run(uint8_t read_Buttons)
     case MOV_TO_UP:
 //      Serial.print("State: MOV_TO_UP ");
       solenoid_Move_To_Up();
-      
+
      
       break;
      
@@ -203,6 +238,7 @@ void state_machine_run(uint8_t read_Buttons)
  
     case NEUTRAL:
 //      Serial.print("State: NEUTRAL ");
+      
      
       solenoid_Neutral();
 
@@ -211,6 +247,7 @@ void state_machine_run(uint8_t read_Buttons)
      
     case DOWN:
 //      Serial.print("State: DOWN ");
+ 
           
         solenoid_Down();
       
@@ -229,6 +266,7 @@ void state_machine_run(uint8_t read_Buttons)
 
     case LEARNING:
 //      Serial.print("State: LEARNING ");
+     
       learningNeutralPos();
       ProcessLearnButtonsPressed();
 
@@ -266,15 +304,20 @@ void solenoid_Move_To_Neutral()
   if (newButtonState==false){
 
     if (percentDown == posNeutralBucket){
-      gate_Solenoids_OFF();
+      bucket_Solenoids_OFF();
       state = NEUTRAL;
       Serial.println("State: NEUTRAL ");
+            
+      lcd.setCursor(1,1);
+      lcd.print("State: Neutral  ");
     
-    }else if(((percentDown < posNeutralBucket) && !gateMovingDN ) == true ){
-      gate_Solenoids_DOWN();
 
-    }else if (((percentDown > posNeutralBucket) && !gateMovingUP) == true) {
-      gate_Solenoid_UP();
+    
+    }else if(((percentDown < posNeutralBucket) && !bucketMovingDN ) == true ){
+      bucket_Solenoids_DOWN();
+
+    }else if (((percentDown > posNeutralBucket) && !bucketMovingUP) == true) {
+      bucket_Solenoid_UP();
     }
   }  
 }
@@ -289,12 +332,15 @@ void solenoid_Move_To_Up()
   //Serial.println(percentDown);
   whichButtonsPressed();
   if (newButtonState==false){   
-    if (percentDown == 0){
+    if (percentDown <= posUpBucket){
       Serial.print("Gate Position fully UP ");
-      gate_Solenoids_OFF(); // turn off all solenoids
+      bucket_Solenoids_OFF(); // turn off all solenoids
       TurnOnForwardLED();//Indicate we can now go forward
       state = UP;
       Serial.println("State: UP ");
+      lcd.setCursor(1,1);
+      lcd.print("State: UP       ");
+
     }  
   }  
 }
@@ -306,10 +352,13 @@ void solenoid_Move_To_Down()
   whichButtonsPressed(); // check for button presses
   if (newButtonState==false){
     if(percentDown >= posDownBucket){
-      gate_Solenoids_OFF();
+      bucket_Solenoids_OFF();
       TurnOnReverseLED();
       state = DOWN;
       Serial.println("State: DOWN ");
+      lcd.setCursor(1,1);
+      lcd.print("State: DOWN     ");
+
     }
   }
 
@@ -341,6 +390,9 @@ void solenoid_Neutral_Learning()
     TurnOffAllLEDs();
     state = LEARNING;
     Serial.println("State: LEARNING ");
+    lcd.setCursor(1,1);
+    lcd.print("Learning Neutral");
+    
   }
 
 
@@ -481,31 +533,42 @@ void TurnOnAllLEDs()
 
 
 
-void gate_Solenoid_UP()
+void bucket_Solenoid_UP()
 {
-  gateMovingUP = true;
-  gateMovingDN = false;
+  bucketMoveTimer = millis();
+  bucketMovingUP = true;
+  bucketMovingDN = false;
   digitalWrite(reverseSolenoidPin, LOW);
   digitalWrite(forwardSolenoidPin, HIGH);
   Serial.println("\t ON Solenoids UP ");  
+  lcd.setCursor(15,0);
+  lcd.print(" ");  // Clear Output timeout indicator
 }
-void gate_Solenoids_DOWN()
+void bucket_Solenoids_DOWN()
 {
-  gateMovingDN = true;
-  gateMovingUP = false;
+  bucketMoveTimer = millis();
+  bucketMovingDN = true;
+  bucketMovingUP = false;
   digitalWrite(forwardSolenoidPin, LOW);
   digitalWrite(reverseSolenoidPin, HIGH);
   Serial.println("\t ON Solenoids DOWN ");    
-  
+  lcd.setCursor(15,0);
+  lcd.print(" ");  // Clear Output timeout indicator
+
 }
 
-void gate_Solenoids_OFF()
+void bucket_Solenoids_OFF()
 {
-  gateMovingUP = false;
-  gateMovingDN = false;
+  
   digitalWrite(forwardSolenoidPin, LOW);
-  digitalWrite(reverseSolenoidPin, LOW);  
-  Serial.println("\t OFF Solenoids ALL ");  
+  digitalWrite(reverseSolenoidPin, LOW);
+  bucketMovingUP = false;
+  bucketMovingDN = false;
+  Serial.println("\t OFF Solenoids ALL ");
+ 
+
+        
+
 }
 
 void whichButtonsPressed()
@@ -515,9 +578,13 @@ void whichButtonsPressed()
     state =  LEARNING_TRANSITION;
     newButtonState=true;
     Serial.println("State: LEARNING_TRANSITION ");
+    lcd.setCursor(1,1);
+    lcd.print("Learning Trans  ");
+
+
     learningButtonIgnoreTime = millis();  //Store the current timer staten so we can ignore buttons
     TurnOffAllLEDs();
-    gate_Solenoids_OFF();
+    bucket_Solenoids_OFF();
     
     
   }else if (((buttonNeutralState && !(buttonForwardState || buttonReverseState)) && !((state == MOVE_TO_NEUTRAL) || (state == NEUTRAL)))== true){
@@ -525,8 +592,11 @@ void whichButtonsPressed()
     state = MOVE_TO_NEUTRAL;
     newButtonState=true;
     Serial.println("State: MOV_TO_NEUTRAL pressed");
+    lcd.setCursor(1,1);
+    lcd.print("Moving-> Neutral");
+
     TurnOffAllLEDs();
-    gate_Solenoids_OFF();  
+    bucket_Solenoids_OFF();  
 
 
 
@@ -536,18 +606,25 @@ void whichButtonsPressed()
     state = MOV_TO_UP;
     newButtonState=true;
     if(percentDown > posUpBucket){
-      gate_Solenoid_UP();
+      bucket_Solenoid_UP();
     }
     Serial.println("State: MOV_TO_UP pressed ");
+    lcd.setCursor(1,1);
+    lcd.print("Moving-> UP     ");
+
     TurnOffAllLEDs();
 
   } else if (buttonReverseState && !((state == MOV_TO_DN) && (state== DOWN)) == true){
     state = MOV_TO_DN;
     newButtonState=true;
     if(percentDown < posDownBucket){
-      gate_Solenoids_DOWN();
+      bucket_Solenoids_DOWN();
     }
     Serial.println("State: MOV_TO_DN ");
+    lcd.setCursor(1,1);
+    lcd.print("Moving-> DOWN   ");
+
+
     TurnOffAllLEDs();
   }
   
@@ -556,43 +633,56 @@ void whichButtonsPressed()
 void ProcessLearnButtonsPressed()
 {
   if ((buttonForwardState && buttonReverseState)== true){
+    lcd.setCursor(1,1);
+    lcd.print("Rtn 2 Prev State");
     state =  statePrevious; // restore the previous state ena exit
     newButtonState=true;
     Serial.print("Restoring Previous State before Learning ");
     Serial.println("State: ");
     Serial.println(state);
-    gate_Solenoids_OFF();
+    bucket_Solenoids_OFF();
     TurnOffAllLEDs();  
     
     
   }else if (buttonNeutralState == true){
+    bucket_Solenoids_OFF();
+    TurnOffAllLEDs();  
+    
     getBucketPosition(); // read current bucket position
     posNeutralBucket = percentDown ; //Save the New Neutral Bucket Position
     
     EEPROM.update(neutralBucketEeAddress, posNeutralBucket);
     delay(100);
     // nasty should check it has saved and retry if required.
-
   
     Serial.print("New Bucket Neutral Position: ");
     Serial.println(posNeutralBucket);
     state = NEUTRAL;
+    lcd.setCursor(1,1);
+    lcd.print("St:Neutral Saved");
     newButtonState=true;
     Serial.println("State: NEUTRAL ");
-    gate_Solenoids_OFF();
-    TurnOffAllLEDs();  
+   
+    
 
-  } else if ((buttonForwardState && !gateMovingUP) == true){
-    gate_Solenoid_UP();
+  } else if ((buttonForwardState && !bucketMovingUP) == true){
+    
+    lcd.setCursor(1,1);
+    lcd.print("Moving UP       ");
+    bucket_Solenoid_UP();
 
 
-  } else if ((buttonReverseState && !gateMovingDN) == true){
-    gate_Solenoids_DOWN();
+  } else if ((buttonReverseState && !bucketMovingDN) == true){
+    lcd.setCursor(1,1);
+    lcd.print("Moving DOWN     ");
+    bucket_Solenoids_DOWN();
 
 //  } else if (!(buttonForwardState | buttonReverseState | buttonNeutralState) == true){
 
-  } else if (!(buttonForwardState || buttonReverseState || buttonNeutralState) && (gateMovingDN || gateMovingUP) == true){
-    gate_Solenoids_OFF();
+  } else if (!(buttonForwardState || buttonReverseState || buttonNeutralState) && (bucketMovingDN || bucketMovingUP) == true){
+    bucket_Solenoids_OFF();
+    lcd.setCursor(1,1);
+    lcd.print("Learning Neutral");
   }
 
 }
@@ -679,18 +769,18 @@ delay(testDelay);
 
 
 /*
-gate_Solenoid_UP();
+bucket_Solenoid_UP();
 delay(testDelay);
-gate_Solenoids_OFF();
+bucket_Solenoids_OFF();
 delay(testDelay);
-gate_Solenoids_DOWN();
+bucket_Solenoids_DOWN();
 delay(testDelay);
-gate_Solenoids_OFF();
+bucket_Solenoids_OFF();
 delay(testDelay);
-gate_Solenoid_UP();
+bucket_Solenoid_UP();
 delay(testDelay);
-gate_Solenoids_OFF();
+bucket_Solenoids_OFF();
 delay(testDelay);
-gate_Solenoids_DOWN();
+bucket_Solenoids_DOWN();
 */
 }
