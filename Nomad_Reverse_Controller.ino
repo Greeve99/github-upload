@@ -1,7 +1,7 @@
 
 /*
 Reverse Bucket Controller with a Potentiometer as position sensor
-V1.0f
+V1.0g
 
 Externally the unit has 3 Iluminated Buttons
   IO            Buttons             Indicator
@@ -89,6 +89,7 @@ bool buttonForwardState = false;
 bool buttonReverseState = false;
 bool buttonNeutralState = false;
 bool newStateFlag;
+bool solenoidsMovementTimedOut = false;
 
 bool buttFwdPrevState = false;
 bool buttRevPrevState = false;
@@ -189,9 +190,10 @@ void loop(){
 //  delay(100);
 if(bucketMovingUP||bucketMovingDN){ // while any solenoid is ON
   if((millis()-bucketMoveTimer)>bucketMoveTimeoutValue){  //Check the timeout
-    bucket_Solenoids_OFF();  // turn off soeloids
+    bucket_Solenoids_OFF();  // turn off solenoids
     lcd.setCursor(15,0);
     lcd.print("T");  // indicate output timmed OFF
+    solenoidsMovementTimedOut == true ;
         
   }
 }
@@ -543,6 +545,7 @@ void bucket_Solenoid_UP()
   Serial.println("\t ON Solenoids UP ");  
   lcd.setCursor(15,0);
   lcd.print(" ");  // Clear Output timeout indicator
+  solenoidsMovementTimedOut = false ;
 }
 void bucket_Solenoids_DOWN()
 {
@@ -554,7 +557,7 @@ void bucket_Solenoids_DOWN()
   Serial.println("\t ON Solenoids DOWN ");    
   lcd.setCursor(15,0);
   lcd.print(" ");  // Clear Output timeout indicator
-
+  solenoidsMovementTimedOut = false ;
 }
 
 void bucket_Solenoids_OFF()
@@ -605,7 +608,7 @@ void whichButtonsPressed()
   //} else if ((buttonForwardState & !buttonNeutralState & !buttonReverseState) == true){
     state = MOV_TO_UP;
     newButtonState=true;
-    if(percentDown > posUpBucket){
+    if((percentDown > posUpBucket)&& solenoidsMovementTimedOut == false) ;{
       bucket_Solenoid_UP();
     }
     Serial.println("State: MOV_TO_UP pressed ");
@@ -617,7 +620,7 @@ void whichButtonsPressed()
   } else if (buttonReverseState && !((state == MOV_TO_DN) && (state== DOWN)) == true){
     state = MOV_TO_DN;
     newButtonState=true;
-    if(percentDown < posDownBucket){
+    if((percentDown < posDownBucket)&& solenoidsMovementTimedOut == false){
       bucket_Solenoids_DOWN();
     }
     Serial.println("State: MOV_TO_DN ");
