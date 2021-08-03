@@ -1,18 +1,15 @@
 
 /*
 Reverse Bucket Controller with a Potentiometer as position sensor
-V1.0g
 
 Externally the unit has 3 Iluminated Buttons
   IO            Buttons             Indicator
   Bucket DN     Reverse             In Reverse;- Bucket Fully Down
   Bucket UP     Forward             Going Forward;- Bucket UP
                 Neutral             In Neutral; - Bucket in programmed intermediate position
-
 */
-
+#define VERSION  "1.01h"
 #include <EEPROM.h>
-
 
 
 #include <Wire.h> 
@@ -49,7 +46,7 @@ void bucket_Solenoids_OFF();
 
 
 int bucketPositionPin = A3;        // potentiometer is connected to analog 4 pin
-int reverseSolenoidPin = 5;        // Pin to drive bucket to Reverse (Down)position
+int reverseSolenoidPin = 4;        // Pin to drive bucket to Reverse (Down)position
 int forwardSolenoidPin = 6;        // Pin to drive bucket to Forward (Up) position
 int buttonReversePin = 10;  // input pin
 int buttonForwardPin = 12;
@@ -81,8 +78,8 @@ int nwtPinDeb = 0;
 int debounceVal = 3;
 
 int posNeutralBucket = 49;
-int posUpBucket = 20;
-int posDownBucket = 97;
+int posUpBucket = 10;
+int posDownBucket = 99;
 int testDelay = 200;
 
 bool buttonForwardState = false;
@@ -115,7 +112,7 @@ void setup(){
   lcd.setCursor(1,0);
   lcd.print("Nomad Jets");
   lcd.setCursor(1,1);
-  lcd.print("V1.0f");
+  lcd.print(VERSION);
 
 
 
@@ -154,6 +151,8 @@ void setup(){
 
  test_Button_LEDs(); //flash Button LED's to  for startup self test
 
+    lcd.setCursor(0,0);
+    lcd.print("B:              ");
 
 }
 //  -------------------------------------
@@ -166,10 +165,12 @@ void loop(){
                                          
   getBucketPosition();
 
-    lcd.setCursor(1,0);
-    lcd.print("Bucket: ");
+
+    lcd.setCursor(2,0);
     lcd.print(percentDown);
-    
+    lcd.print(" : ");
+    lcd.print(potBucketValue);
+
  
   //Serial.print("Gate Position is: ");   
   //Serial.println(percentDown);   
@@ -288,7 +289,7 @@ void state_machine_run(uint8_t read_Buttons)
 void getBucketPosition()
 {
   potBucketValue = analogRead(bucketPositionPin); // read the value from the potentiometer and assign the name potValue
-  percentDown = map(potBucketValue, 0, 1023, 0, 100); // convert potentiometer reading to a percentage
+  percentDown = map(potBucketValue, 5, 809, 0, 100); // convert potentiometer reading to a percentage
 //  Serial.println(percentDown);                // Printing current BUCKET POSITION 
 }
 
@@ -771,7 +772,7 @@ TurnOffAllLEDs();
 delay(testDelay);
 
 
-/*
+
 bucket_Solenoid_UP();
 delay(testDelay);
 bucket_Solenoids_OFF();
@@ -785,5 +786,5 @@ delay(testDelay);
 bucket_Solenoids_OFF();
 delay(testDelay);
 bucket_Solenoids_DOWN();
-*/
+
 }
