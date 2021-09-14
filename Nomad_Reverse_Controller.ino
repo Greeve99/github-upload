@@ -8,7 +8,7 @@ Externally the unit has 3 Iluminated Buttons
   Bucket UP     Forward             Going Forward;- Bucket UP
                 Neutral             In Neutral; - Bucket in programmed intermediate position
 */
-#define VERSION  "1.01h"
+#define VERSION  "1.01k"
 #include <EEPROM.h>
 
 
@@ -168,8 +168,9 @@ void loop(){
 
     lcd.setCursor(2,0);
     lcd.print(percentDown);
-    lcd.print(" : ");
+    lcd.print(" :");
     lcd.print(potBucketValue);
+    lcd.print("    ");
 
  
   //Serial.print("Gate Position is: ");   
@@ -194,7 +195,7 @@ if(bucketMovingUP||bucketMovingDN){ // while any solenoid is ON
     bucket_Solenoids_OFF();  // turn off solenoids
     lcd.setCursor(15,0);
     lcd.print("T");  // indicate output timmed OFF
-    solenoidsMovementTimedOut == true ;
+    solenoidsMovementTimedOut = true ;
         
   }
 }
@@ -316,10 +317,10 @@ void solenoid_Move_To_Neutral()
     
 
     
-    }else if(((percentDown < posNeutralBucket) && !bucketMovingDN ) == true ){
+    }else if(((percentDown < posNeutralBucket) && !bucketMovingDN && !solenoidsMovementTimedOut) == true ){
       bucket_Solenoids_DOWN();
 
-    }else if (((percentDown > posNeutralBucket) && !bucketMovingUP) == true) {
+    }else if (((percentDown > posNeutralBucket) && !bucketMovingUP && !solenoidsMovementTimedOut) == true) {
       bucket_Solenoid_UP();
     }
   }  
@@ -591,25 +592,23 @@ void whichButtonsPressed()
     bucket_Solenoids_OFF();
     
     
-  }else if (((buttonNeutralState && !(buttonForwardState || buttonReverseState)) && !((state == MOVE_TO_NEUTRAL) || (state == NEUTRAL)))== true){
+  }else if (((buttonNeutralState && !(buttonForwardState || buttonReverseState)) && !( (state == NEUTRAL)))== true){  //Neutral Button Pressed
   //}else if ((buttonNeutralState & (!(state == MOVE_TO_NEUTRAL) & !(state == NEUTRAL)))== true){
     state = MOVE_TO_NEUTRAL;
     newButtonState=true;
     Serial.println("State: MOV_TO_NEUTRAL pressed");
     lcd.setCursor(1,1);
     lcd.print("Moving-> Neutral");
-
+    solenoidsMovementTimedOut = false ; //Button pressed so clear timeout and try again
     TurnOffAllLEDs();
-    bucket_Solenoids_OFF();  
+    //bucket_Solenoids_OFF();  
 
-
-
-
-  } else if ((buttonForwardState && !buttonReverseState && !(state == UP || state == MOV_TO_UP)) == true){
+  } else if ((buttonForwardState && !buttonReverseState && !(state == UP || state == MOV_TO_UP)) == true){   //FORWARD Button pressed
   //} else if ((buttonForwardState & !buttonNeutralState & !buttonReverseState) == true){
     state = MOV_TO_UP;
     newButtonState=true;
-    if((percentDown > posUpBucket)&& solenoidsMovementTimedOut == false) ;{
+  //  if((percentDown > posUpBucket)&& solenoidsMovementTimedOut == false) ;{
+    if(percentDown > posUpBucket) ;{
       bucket_Solenoid_UP();
     }
     Serial.println("State: MOV_TO_UP pressed ");
@@ -618,20 +617,20 @@ void whichButtonsPressed()
 
     TurnOffAllLEDs();
 
-  } else if (buttonReverseState && !((state == MOV_TO_DN) && (state== DOWN)) == true){
+  } else if (buttonReverseState && !((state == MOV_TO_DN) && (state== DOWN)) == true){   //REVERSE Button pressed
     state = MOV_TO_DN;
     newButtonState=true;
-    if((percentDown < posDownBucket)&& solenoidsMovementTimedOut == false){
+  //  if((percentDown < posDownBucket)&& solenoidsMovementTimedOut == false){
+    if(percentDown < posDownBucket){
+      
       bucket_Solenoids_DOWN();
     }
     Serial.println("State: MOV_TO_DN ");
     lcd.setCursor(1,1);
     lcd.print("Moving-> DOWN   ");
 
-
     TurnOffAllLEDs();
-  }
-  
+  }  
 }
 
 void ProcessLearnButtonsPressed()
@@ -740,9 +739,6 @@ void FlashAllLED(){
     }
 }
   
-
-
-
 
 void test_Button_LEDs()
 {

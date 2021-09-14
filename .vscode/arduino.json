@@ -1,6 +1,8 @@
 {
-    "configuration": "cpu=atmega328",
+    "configuration": "cpu=atmega328old",
     "board": "arduino:avr:nano",
     "sketch": "Nomad_Reverse_Controller.ino",
-    "output": "../ArduinoOutput"
+    "output": "../ArduinoOutput",
+    "port": "COM5",
+    "programmer": "arduino:avrispmkii"
 }
