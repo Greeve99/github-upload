@@ -59,6 +59,8 @@ static uint8_t toggleLED=0; // toggle the LED
 static uint32_t ledtime= millis();
 int AliveLED = 13;  // LED we toggle to show processor is running
 int16_t aliveFlashTime = 250; // time Alive light toggles in ms
+int16_t timeOutFlashTime = 100; // time Alive light toggles in ms if a movement has timmed out before completion
+
 
 unsigned long learningButtonIgnoreTime; // storage for button debounce timer
 int16_t learningStateWaitdelay = 2000; // when all buttons pushed wait this time before processing anymore buttons. 
@@ -105,7 +107,7 @@ void setup(){
 
   // pinMode(redPin, OUTPUT); // red LED is as an output
   // pinMode(greenPin, OUTPUT); // green LED is as an output
- Serial.begin(250000);   // Started serial communication at baud rate of 250000.
+ Serial.begin(115200);   // Started serial communication at baud rate of 250000.
 
   lcd.init();                      // initialize the lcd 
   lcd.backlight();
@@ -582,10 +584,10 @@ void whichButtonsPressed()
     statePrevious = state ; // store the current state on entry to learning
     state =  LEARNING_TRANSITION;
     newButtonState=true;
+
     Serial.println("State: LEARNING_TRANSITION ");
     lcd.setCursor(1,1);
     lcd.print("Learning Trans  ");
-
 
     learningButtonIgnoreTime = millis();  //Store the current timer staten so we can ignore buttons
     TurnOffAllLEDs();
@@ -647,7 +649,7 @@ void ProcessLearnButtonsPressed()
     TurnOffAllLEDs();  
     
     
-  }else if (buttonNeutralState == true){
+  }else if (buttonNeutralState == true){ //Neutral Button Pressed in Learn mode so Save New position to EEprom
     bucket_Solenoids_OFF();
     TurnOffAllLEDs();  
     
@@ -668,19 +670,18 @@ void ProcessLearnButtonsPressed()
    
     
 
-  } else if ((buttonForwardState && !bucketMovingUP) == true){
+  } else if ((buttonForwardState && !bucketMovingUP) == true){  // While UP button is pressed turn on UP solenoid 
     
     lcd.setCursor(1,1);
     lcd.print("Moving UP       ");
     bucket_Solenoid_UP();
 
 
-  } else if ((buttonReverseState && !bucketMovingDN) == true){
+  } else if ((buttonReverseState && !bucketMovingDN) == true){  // While DN button is pressed turn on DOWN solenoid 
     lcd.setCursor(1,1);
     lcd.print("Moving DOWN     ");
     bucket_Solenoids_DOWN();
 
-//  } else if (!(buttonForwardState | buttonReverseState | buttonNeutralState) == true){
 
   } else if (!(buttonForwardState || buttonReverseState || buttonNeutralState) && (bucketMovingDN || bucketMovingUP) == true){
     bucket_Solenoids_OFF();
@@ -692,11 +693,14 @@ void ProcessLearnButtonsPressed()
 
 
 
-
-
 void updateToggleLEDAlive()
 { 
-  if ( (millis()-ledtime) > aliveFlashTime) {
+  int16_t activeFlashTime = aliveFlashTime ;
+  if (solenoidsMovementTimedOut){  // so the LED flashes quicker if the movement timed out before reaching target position
+    activeFlashTime = timeOutFlashTime ;
+  }
+
+  if ( (millis()-ledtime) > activeFlashTime) {
        ledtime = millis();
 
        toggleLED = ~toggleLED; // Invert
