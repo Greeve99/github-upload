@@ -8,7 +8,7 @@ Externally the unit has 3 Iluminated Buttons
   Bucket UP     Forward             Going Forward;- Bucket UP
                 Neutral             In Neutral; - Bucket in programmed intermediate position
 */
-#define VERSION  "1.01k"
+#define VERSION  "1.01m"
 #include <EEPROM.h>
 
 
@@ -58,7 +58,7 @@ int ledReversePin = 7;
 static uint8_t toggleLED=0; // toggle the LED
 static uint32_t ledtime= millis();
 int AliveLED = 13;  // LED we toggle to show processor is running
-int16_t aliveFlashTime = 250; // time Alive light toggles in ms
+int16_t aliveFlashTime = 300; // time Alive light toggles in ms
 int16_t timeOutFlashTime = 100; // time Alive light toggles in ms if a movement has timmed out before completion
 
 
@@ -82,7 +82,7 @@ int debounceVal = 3;
 int posNeutralBucket = 49;
 int posUpBucket = 10;
 int posDownBucket = 99;
-int testDelay = 200;
+int testDelay = 300;
 
 bool buttonForwardState = false;
 bool buttonReverseState = false;
@@ -107,7 +107,7 @@ void setup(){
 
   // pinMode(redPin, OUTPUT); // red LED is as an output
   // pinMode(greenPin, OUTPUT); // green LED is as an output
- Serial.begin(115200);   // Started serial communication at baud rate of 250000.
+  Serial.begin(115200);   // Started serial communication at baud rate of 250000.
 
   lcd.init();                      // initialize the lcd 
   lcd.backlight();
@@ -115,8 +115,14 @@ void setup(){
   lcd.print("Nomad Jets");
   lcd.setCursor(1,1);
   lcd.print(VERSION);
-
-
+  
+  Serial.println("-----------------------------");
+  Serial.println("Nomad Jets: Bucket Controller");
+  Serial.print("Version ");
+  Serial.println(VERSION);
+  Serial.println("-----------------------------");
+  
+  
 
  neutralBucketEeAddress = EEPROM.read(eeNeutralPositionPointer); // get where current neutral biucket position is stored.
 
@@ -136,25 +142,27 @@ void setup(){
 
 
 
- pinMode(buttonReversePin, INPUT_PULLUP);  // input pin
- pinMode(buttonForwardPin, INPUT_PULLUP);
- pinMode(buttonNeutralPin, INPUT_PULLUP);
+  pinMode(buttonReversePin, INPUT_PULLUP);  // input pin
+  pinMode(buttonForwardPin, INPUT_PULLUP);
+  pinMode(buttonNeutralPin, INPUT_PULLUP);
 
 
- pinMode(reverseSolenoidPin, OUTPUT);        // Pin to drive bucket to Reverse position
- pinMode(forwardSolenoidPin, OUTPUT);        // Pin to drive bucket to Reverse position
- pinMode(ledForwardPin, OUTPUT);
- pinMode(ledNeutralPin, OUTPUT);
- pinMode(ledReversePin, OUTPUT); 
- pinMode(AliveLED, OUTPUT); // Alive Pin
+  pinMode(reverseSolenoidPin, OUTPUT);        // Pin to drive bucket to Reverse position
+  pinMode(forwardSolenoidPin, OUTPUT);        // Pin to drive bucket to Reverse position
+  pinMode(ledForwardPin, OUTPUT);
+  pinMode(ledNeutralPin, OUTPUT);
+  pinMode(ledReversePin, OUTPUT); 
+  pinMode(AliveLED, OUTPUT); // Alive Pin
 
  
  // Note: analog pins are automatically set as inputs
 
- test_Button_LEDs(); //flash Button LED's to  for startup self test
+  test_Button_LEDs(); //flash Button LED's to  for startup self test
 
-    lcd.setCursor(0,0);
-    lcd.print("B:              ");
+  lcd.setCursor(0,0);
+  lcd.print("B:              ");
+
+  // bucket_Solenoids_OFF();
 
 }
 //  -------------------------------------
@@ -197,6 +205,10 @@ if(bucketMovingUP||bucketMovingDN){ // while any solenoid is ON
     bucket_Solenoids_OFF();  // turn off solenoids
     lcd.setCursor(15,0);
     lcd.print("T");  // indicate output timmed OFF
+    Serial.print("Solenoids Outputs Timed Off in State: ");  
+    Serial.print(state);
+    Serial.print("Gate Position is: ");   
+    Serial.println(percentDown);   
     solenoidsMovementTimedOut = true ;
         
   }
@@ -331,15 +343,13 @@ void solenoid_Move_To_Neutral()
 
 void solenoid_Move_To_Up()
 {
-
   FlashLED(ledForwardPin);
-
   //Serial.print("Gate Position is:- ");   
   //Serial.println(percentDown);
   whichButtonsPressed();
   if (newButtonState==false){   
     if (percentDown <= posUpBucket){
-      Serial.print("Gate Position fully UP ");
+      Serial.println("Gate Position fully UP ");
       bucket_Solenoids_OFF(); // turn off all solenoids
       TurnOnForwardLED();//Indicate we can now go forward
       state = UP;
@@ -491,30 +501,34 @@ thisPinScan = !digitalRead(buttonNeutralPin); // read pin and invert logic as pi
 
 void TurnOnForwardLED()
 {
- 
+    if ( !digitalRead(ledForwardPin)){ // only turn on if not on.
+      
     digitalWrite(ledReversePin, LOW);
     digitalWrite(ledNeutralPin, LOW);
     digitalWrite(ledForwardPin, HIGH);
-    Serial.println("Forward LED - ON");  
-  
+    Serial.println("\tLED Forward -> ON");  
+    }
 }
 
 void TurnOnReverseLED()
 {
- 
+    if ( !digitalRead(ledReversePin)){ // only turn on if not on.
     digitalWrite(ledReversePin, HIGH);
     digitalWrite(ledNeutralPin, LOW);
     digitalWrite(ledForwardPin, LOW);
-    Serial.println("Reverse LED - ON");
+    Serial.println("\tLED Reverse -> ON");
+    }
   
 }
 
 void TurnOnNeutralLED()
 {
+  if ( !digitalRead(ledNeutralPin)){ // only turn on if not on.
   digitalWrite(ledReversePin, LOW);
   digitalWrite(ledNeutralPin, HIGH);
   digitalWrite(ledForwardPin, LOW);
-  Serial.println("Neutral LED - ON");
+  Serial.println("\tLED Neutral -> ON");
+  }
     
 }
 
@@ -524,7 +538,7 @@ void TurnOffAllLEDs()
   digitalWrite(ledReversePin,LOW);
   digitalWrite(ledNeutralPin, LOW);
   digitalWrite(ledForwardPin, LOW);
-  Serial.println("ALL LED - OFF");
+  Serial.println("\tLED All     -> OFF");
     
 }
 
@@ -533,7 +547,7 @@ void TurnOnAllLEDs()
   digitalWrite(ledReversePin,HIGH);
   digitalWrite(ledNeutralPin, HIGH);
   digitalWrite(ledForwardPin, HIGH);
-  Serial.println("ALL LED - ON");
+  Serial.println("\tLED All     -> ON");
     
 }
 
@@ -546,10 +560,11 @@ void bucket_Solenoid_UP()
   bucketMovingDN = false;
   digitalWrite(reverseSolenoidPin, LOW);
   digitalWrite(forwardSolenoidPin, HIGH);
-  Serial.println("\t ON Solenoids UP ");  
+  Serial.println("\t\t Solenoid UP   -> ON");  
   lcd.setCursor(15,0);
   lcd.print(" ");  // Clear Output timeout indicator
   solenoidsMovementTimedOut = false ;
+  
 }
 void bucket_Solenoids_DOWN()
 {
@@ -558,23 +573,21 @@ void bucket_Solenoids_DOWN()
   bucketMovingUP = false;
   digitalWrite(forwardSolenoidPin, LOW);
   digitalWrite(reverseSolenoidPin, HIGH);
-  Serial.println("\t ON Solenoids DOWN ");    
+  Serial.println("\t\t Solenoid DOWN -> ON");    
   lcd.setCursor(15,0);
   lcd.print(" ");  // Clear Output timeout indicator
   solenoidsMovementTimedOut = false ;
+  
 }
 
 void bucket_Solenoids_OFF()
 {
-  
   digitalWrite(forwardSolenoidPin, LOW);
   digitalWrite(reverseSolenoidPin, LOW);
   bucketMovingUP = false;
   bucketMovingDN = false;
-  Serial.println("\t OFF Solenoids ALL ");
- 
-
-        
+  Serial.println("\t\t Solenoids ALL  -> OFF ");
+     
 
 }
 
@@ -594,8 +607,7 @@ void whichButtonsPressed()
     bucket_Solenoids_OFF();
     
     
-  }else if (((buttonNeutralState && !(buttonForwardState || buttonReverseState)) && !( (state == NEUTRAL)))== true){  //Neutral Button Pressed
-  //}else if ((buttonNeutralState & (!(state == MOVE_TO_NEUTRAL) & !(state == NEUTRAL)))== true){
+  }else if (buttonNeutralState && !(buttonForwardState || buttonReverseState) && !(state == NEUTRAL || state == MOVE_TO_NEUTRAL) == true){  //Neutral Button Pressed
     state = MOVE_TO_NEUTRAL;
     newButtonState=true;
     Serial.println("State: MOV_TO_NEUTRAL pressed");
@@ -605,33 +617,31 @@ void whichButtonsPressed()
     TurnOffAllLEDs();
     //bucket_Solenoids_OFF();  
 
-  } else if ((buttonForwardState && !buttonReverseState && !(state == UP || state == MOV_TO_UP)) == true){   //FORWARD Button pressed
-  //} else if ((buttonForwardState & !buttonNeutralState & !buttonReverseState) == true){
-    state = MOV_TO_UP;
-    newButtonState=true;
-  //  if((percentDown > posUpBucket)&& solenoidsMovementTimedOut == false) ;{
-    if(percentDown > posUpBucket) ;{
+  } else if (buttonForwardState && !buttonReverseState && !(state == UP || state == MOV_TO_UP)){   //FORWARD Button pressed
+
+      state = MOV_TO_UP;
+      Serial.println("State: MOV_TO_UP pressed ");
+      lcd.setCursor(1,1);
+      lcd.print("Moving-> UP     ");
+      newButtonState=true;
+      TurnOffAllLEDs();
+  
+      if(percentDown > posUpBucket){
       bucket_Solenoid_UP();
-    }
-    Serial.println("State: MOV_TO_UP pressed ");
-    lcd.setCursor(1,1);
-    lcd.print("Moving-> UP     ");
+      }
 
-    TurnOffAllLEDs();
+  } else if (buttonReverseState && !((state == MOV_TO_DN) || (state== DOWN)) == true){   //REVERSE Button pressed
+      state = MOV_TO_DN;
+      Serial.println("State: MOV_TO_DN ");
+      lcd.setCursor(1,1);
+      lcd.print("Moving-> DOWN   ");
+      newButtonState=true;
+      TurnOffAllLEDs();
 
-  } else if (buttonReverseState && !((state == MOV_TO_DN) && (state== DOWN)) == true){   //REVERSE Button pressed
-    state = MOV_TO_DN;
-    newButtonState=true;
-  //  if((percentDown < posDownBucket)&& solenoidsMovementTimedOut == false){
-    if(percentDown < posDownBucket){
-      
-      bucket_Solenoids_DOWN();
-    }
-    Serial.println("State: MOV_TO_DN ");
-    lcd.setCursor(1,1);
-    lcd.print("Moving-> DOWN   ");
-
-    TurnOffAllLEDs();
+      if(percentDown < posDownBucket){
+        bucket_Solenoids_DOWN();
+      }
+  
   }  
 }
 
@@ -642,7 +652,7 @@ void ProcessLearnButtonsPressed()
     lcd.print("Rtn 2 Prev State");
     state =  statePrevious; // restore the previous state ena exit
     newButtonState=true;
-    Serial.print("Restoring Previous State before Learning ");
+    Serial.println("Restoring Previous State before Learning ");
     Serial.println("State: ");
     Serial.println(state);
     bucket_Solenoids_OFF();
@@ -660,7 +670,7 @@ void ProcessLearnButtonsPressed()
     delay(100);
     // nasty should check it has saved and retry if required.
   
-    Serial.print("New Bucket Neutral Position: ");
+    Serial.print("Saved New Bucket Neutral Position: ");
     Serial.println(posNeutralBucket);
     state = NEUTRAL;
     lcd.setCursor(1,1);
@@ -675,17 +685,19 @@ void ProcessLearnButtonsPressed()
     lcd.setCursor(1,1);
     lcd.print("Moving UP       ");
     bucket_Solenoid_UP();
+    Serial.println("\t\t\tBucket Moving UP ");
 
 
   } else if ((buttonReverseState && !bucketMovingDN) == true){  // While DN button is pressed turn on DOWN solenoid 
     lcd.setCursor(1,1);
     lcd.print("Moving DOWN     ");
     bucket_Solenoids_DOWN();
+    Serial.println("\t\t\tBucket Moving DOWN ");
 
 
   } else if (!(buttonForwardState || buttonReverseState || buttonNeutralState) && (bucketMovingDN || bucketMovingUP) == true){
     bucket_Solenoids_OFF();
-    lcd.setCursor(1,1);
+    lcd.setCursor(0,1);
     lcd.print("Learning Neutral");
   }
 
@@ -772,19 +784,20 @@ TurnOffAllLEDs();
 delay(testDelay);
 
 
+/*
+bucket_Solenoid_UP();
+delay(testDelay);
+bucket_Solenoids_OFF();
+delay(testDelay);
+bucket_Solenoids_DOWN();
+delay(testDelay);
+bucket_Solenoids_OFF();
+delay(testDelay);
+bucket_Solenoid_UP();
+delay(testDelay);
+bucket_Solenoids_OFF();
+delay(testDelay);
+bucket_Solenoids_DOWN(); */
 
-bucket_Solenoid_UP();
-delay(testDelay);
-bucket_Solenoids_OFF();
-delay(testDelay);
-bucket_Solenoids_DOWN();
-delay(testDelay);
-bucket_Solenoids_OFF();
-delay(testDelay);
-bucket_Solenoid_UP();
-delay(testDelay);
-bucket_Solenoids_OFF();
-delay(testDelay);
-bucket_Solenoids_DOWN();
 
 }
