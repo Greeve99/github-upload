@@ -8,7 +8,7 @@ Externally the unit has 3 Iluminated Buttons
   Bucket UP     Forward             Going Forward;- Bucket UP
                 Neutral             In Neutral; - Bucket in programmed intermediate position
 */
-#define VERSION  "1.01m"
+#define VERSION  "1.01n"
 #include <EEPROM.h>
 
 
